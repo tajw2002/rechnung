@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deine Rechnung</title>
+<meta name="description" content="Ich hab mal ausgerechnet, was du mir schuldest.">
+<meta property="og:title" content="Deine Rechnung ist da 🧾">
+<meta property="og:description" content="Ich hab mal ausgerechnet, was du mir schuldest.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#24302f">
+<style>
+  /* Kassenbon auf dunklem Tresen: Thermopapier, Monospace, gezackter Abriss */
+  :root {
+    color-scheme: dark;
+    --bg: #24302f;
+    --counter: #1a2322;
+    --paper: #fbfaf5;
+    --ink: #262421;
+    --faded: #7a766d;
+    --stamp-red: #d7263d;
+    --stamp-green: #1f8a4c;
+    --text: #e9efe9;
+    --muted: #9fb1ad;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  [hidden] { display: none !important; }
+  html { min-height: 100%; }
+  body {
+    margin: 0;
+    min-height: 100%;
+    background: radial-gradient(ellipse at 50% 0%, #2f3e3c, var(--bg) 60%, var(--counter));
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    -webkit-tap-highlight-color: transparent;
+  }
+  main {
+    box-sizing: border-box;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-block: 32px 48px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    gap: 24px;
+  }
+
+  /* Intro */
+  #intro { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; text-align: center; }
+  #intro h1 { margin: 0; max-width: 18ch; font-size: clamp(28px, 6vw, 52px); font-weight: 800; line-height: 1.12; text-wrap: balance; }
+  #step { min-height: 1.4em; font: 15px var(--mono); color: var(--muted); }
+  .spinner { width: 34px; height: 34px; border: 3px solid rgba(233, 239, 233, 0.18); border-top-color: var(--text); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Drucker-Schlitz + Bon */
+  .printer { width: min(400px, 100%); display: flex; flex-direction: column; align-items: center; }
+  .slot { width: 100%; height: 14px; border-radius: 7px; background: #0c1110; box-shadow: inset 0 2px 4px #000; position: relative; z-index: 2; }
+  .receipt {
+    position: relative;
+    box-sizing: border-box;
+    width: calc(100% - 24px);
+    margin-top: -7px;
+    padding: 26px 18px 34px;
+    overflow: hidden;                  /* Stempel dürfen die Seite nicht verbreitern */
+    background: var(--paper);
+    color: var(--ink);
+    font: 13.5px/1.55 var(--mono);
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 16px 30px rgba(0, 0, 0, 0.35);
+    /* gezackter Abriss unten */
+    -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 14px 100%;
+            mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 14px 100%;
+  }
+  .receipt .row { display: flex; justify-content: space-between; gap: 12px; animation: print 0.18s ease-out; }
+  .receipt .row > span:first-child { min-width: 0; }
+  .receipt .row > span:last-child { white-space: nowrap; text-align: right; }
+  .receipt .note { color: var(--faded); padding-left: 2ch; }
+  .receipt .center { text-align: center; animation: print 0.18s ease-out; }
+  .receipt .head { font-weight: 800; font-size: 15px; letter-spacing: 0.08em; }
+  .receipt .rule { border-top: 1px dashed var(--faded); margin: 8px 0; }
+  .receipt .double { border-top: 3px double var(--ink); margin: 8px 0; }
+  .receipt .total { font-weight: 800; font-size: 17px; }
+  .receipt .fee { color: var(--stamp-red); }
+  .barcode {
+    height: 46px;
+    margin: 12px auto 4px;
+    width: 80%;
+    background: repeating-linear-gradient(90deg, var(--ink) 0 2px, transparent 2px 4px, var(--ink) 4px 5px, transparent 5px 8px, var(--ink) 8px 11px, transparent 11px 12px);
+  }
+  @keyframes print { from { opacity: 0; transform: translateY(-4px); } }
+
+  /* Stempel */
+  .stamp {
+    position: absolute;
+    left: 50%;
+    top: var(--top, 45%);
+    translate: -50% -50%;
+    rotate: var(--rot, -14deg);
+    padding: 6px 14px;
+    border: 4px solid currentColor;
+    border-radius: 8px;
+    font: 900 clamp(15px, 5.2vw, 22px) var(--font);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    opacity: 0.82;
+    mix-blend-mode: multiply;
+    animation: stamp 0.25s cubic-bezier(0.3, 1.6, 0.5, 1);
+    pointer-events: none;
+  }
+  .stamp.red { color: var(--stamp-red); }
+  .stamp.green { color: var(--stamp-green); }
+  @keyframes stamp { from { scale: 2.2; opacity: 0; } }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .actions button {
+    font: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 12px 20px;
+    border-radius: 999px;
+    border: 2px solid var(--text);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .actions button.primary { background: var(--text); color: var(--bg); }
+  .actions button:focus-visible { outline: 3px solid var(--muted); outline-offset: 3px; }
+  .actions button:disabled { opacity: 0.45; cursor: default; }
+  #toast { min-height: 1.3em; font-size: 15px; color: var(--muted); text-align: center; max-width: 36ch; }
+  @media (prefers-reduced-motion: reduce) {
+    .spinner { animation-duration: 3s; }
+    .receipt .row, .receipt .center, .stamp { animation: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <section id="intro" aria-live="polite">
+    <h1>Ich hab mal ausgerechnet, was du mir schuldest…</h1>
+    <div class="spinner" aria-hidden="true"></div>
+    <div id="step"></div>
+  </section>
+
+  <section class="printer" id="printer" hidden>
+    <div class="slot" aria-hidden="true"></div>
+    <div class="receipt" id="receipt" role="document" aria-label="Rechnung"></div>
+  </section>
+  <div class="actions" id="actions" hidden>
+    <button id="object" type="button">Einspruch einlegen</button>
+    <button id="pay" type="button" class="primary">Bezahlen</button>
+  </div>
+  <div id="toast" aria-live="polite"></div>
+</main>
+
+<script>
+/* =========================================================================
+   CONFIG – Posten und Texte. Hier am besten eure Insider eintragen!
+   price: Zahl in Euro, oder null für "unbezahlbar"
+   ========================================================================= */
+const CONFIG = {
+  shop: 'FREUNDSCHAFTS-KASSE',
+  steps: ['Hole Kontoauszüge…', 'Frage deine Mutter…', 'Rechne Zinsen ein…', 'Runde großzügig auf…', 'Drucke Rechnung…'],
+  stepTime: 900,
+  lineTime: 260,                       // Druckgeschwindigkeit pro Zeile (ms)
+  items: [
+    { text: '3× Ladekabel ausgeliehen', note: 'nie zurückgegeben', price: 12.5 },
+    { text: 'Zuhören bei deinem Drama', note: '4 Std. à 20,00', price: 80 },
+    { text: 'Pommes von meinem Teller', note: '„nur eine“ – geschätzt 37 Stück', price: 9.25 },
+    { text: 'Warten, weil du „gleich da“ warst', note: 'insgesamt ca. 6 Std.', price: 45 },
+    { text: 'Mein Netflix-Account', note: 'seit 2 Jahren, ungefragt', price: 15.99 },
+    { text: 'Deine Sprachnachrichten anhören', note: '11 Min. pro Stück', price: 23.4 },
+    { text: 'Moralische Unterstützung', note: 'immer, zu jeder Uhrzeit', price: null },
+  ],
+  discount: 0.01,                      // Freundschaftsrabatt in Euro
+  taxRate: 0.19,
+  taxLabel: 'MwSt. (Mehr Wert durch Streit)',
+  payIn: 'Zahlbar in: Döner, Pizza oder Bargeld.',
+  terms: 'Zahlungsziel: sofort. Mahngebühren: hoch.',
+  thanks: 'Vielen Dank für Ihre Freundschaft!',
+  objectionFee: 2.0,
+  objectionToasts: [
+    'Einspruch abgelehnt. Bearbeitungsgebühr: 2,00 €.',
+    'Wieder abgelehnt. Wieder 2,00 €. Willst du wirklich weitermachen?',
+    'Die Rechtsabteilung (ich) lacht gerade.',
+    'Jeder Einspruch macht es teurer. Nur so als Info.',
+  ],
+  payToast: 'Zahlung akzeptiert. Ich nehme den Döner mit Extra-Soße.',
+  defaultCustomer: 'Du',
+};
+
+/* ---------- Grundlagen ----------------------------------------------------- */
+const $ = (id) => document.getElementById(id);
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const wait = (ms) => new Promise((r) => setTimeout(r, REDUCED ? Math.min(ms, 80) : ms));
+const params = new URLSearchParams(location.search);
+const cleanName = (raw) => (raw || '').replace(/[_\-.~+]+/g, ' ').replace(/[^\p{L}\s]/gu, '').trim().slice(0, 24);
+let hashN = '';
+try { hashN = cleanName(decodeURIComponent(location.hash.slice(1))); } catch (e) { hashN = ''; }
+const NAME = cleanName(params.get('name')) || hashN;
+const eur = (v) => v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const receipt = $('receipt');
+let fees = 0, objections = 0, totalRow = null, subRow = null, taxRow = null, feeAnchor = null, paid = false;
+
+function el(cls, html) {
+  const d = document.createElement('div');
+  d.className = cls;
+  if (html !== undefined) d.innerHTML = html;
+  return d;
+}
+function row(left, right, cls = '') {
+  const d = el('row ' + cls);
+  const a = document.createElement('span'), b = document.createElement('span');
+  a.textContent = left;
+  b.textContent = right;
+  d.append(a, b);
+  return d;
+}
+// Zeile "drucken" und mitscrollen, falls der Bon länger als der Bildschirm ist
+async function print(node) {
+  receipt.append(node);
+  const r = node.getBoundingClientRect();
+  if (r.bottom > innerHeight - 40) scrollBy({ top: r.bottom - innerHeight + 80, behavior: REDUCED ? 'auto' : 'smooth' });
+  await wait(CONFIG.lineTime);
+}
+
+/* ---------- Summen --------------------------------------------------------- */
+function totals() {
+  const sub = CONFIG.items.reduce((s, i) => s + (i.price || 0), 0) + fees;
+  const net = sub - CONFIG.discount;
+  const tax = Math.round(net * CONFIG.taxRate * 100) / 100;
+  return { sub, tax, total: net + tax };
+}
+function updateTotals() {
+  const t = totals();
+  subRow.lastChild.textContent = eur(t.sub);
+  taxRow.lastChild.textContent = eur(t.tax);
+  totalRow.lastChild.textContent = 'EUR ' + eur(t.total);
+}
+
+/* ---------- Ablauf --------------------------------------------------------- */
+async function run() {
+  for (const s of CONFIG.steps) {
+    $('step').textContent = s;
+    await wait(CONFIG.stepTime);
+  }
+  $('intro').hidden = true;
+  $('printer').hidden = false;
+
+  const now = new Date();
+  const date = now.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const time = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  await print(el('center head', CONFIG.shop));
+  await print(el('center', 'Bon-Nr. 0815 · Kasse 1'));
+  await print(el('center', `${date} · ${time} Uhr`));
+  const cust = el('center');
+  cust.textContent = 'Kunde: ' + (NAME || CONFIG.defaultCustomer);
+  await print(cust);
+  await print(el('rule'));
+
+  for (const item of CONFIG.items) {
+    await print(row(item.text, item.price === null ? 'unbezahlbar' : eur(item.price)));
+    if (item.note) {
+      const n = el('note');
+      n.textContent = item.note;
+      await print(n);
+    }
+  }
+  feeAnchor = el('fees');
+  receipt.append(feeAnchor);
+  await print(el('rule'));
+
+  const t = totals();
+  subRow = row('Zwischensumme', eur(t.sub));
+  await print(subRow);
+  await print(row('Freundschaftsrabatt', '-' + eur(CONFIG.discount)));
+  taxRow = row(`${CONFIG.taxLabel} ${Math.round(CONFIG.taxRate * 100)} %`, eur(t.tax));
+  await print(taxRow);
+  await print(el('double'));
+  totalRow = row('SUMME', 'EUR ' + eur(t.total), 'total');
+  await print(totalRow);
+  await print(el('double'));
+  await print(el('center', CONFIG.payIn));
+  await print(el('center', CONFIG.terms));
+  await print(el('barcode'));
+  await print(el('center', CONFIG.thanks));
+  $('actions').hidden = false;
+}
+
+function stamp(text, color, top, rot) {
+  const s = el('stamp ' + color);
+  s.textContent = text;
+  s.style.setProperty('--top', top);
+  s.style.setProperty('--rot', rot);
+  receipt.append(s);
+}
+
+$('object').addEventListener('click', () => {
+  if (paid) return;
+  objections++;
+  fees += CONFIG.objectionFee;
+  const r = row(`Bearbeitungsgebühr Einspruch #${objections}`, eur(CONFIG.objectionFee), 'fee');
+  feeAnchor.append(r);
+  updateTotals();
+  receipt.querySelectorAll('.stamp.red').forEach((s) => s.remove());
+  stamp('Einspruch abgelehnt', 'red', `${30 + Math.random() * 30}%`, `${-18 + Math.random() * 12}deg`);
+  $('toast').textContent = CONFIG.objectionToasts[Math.min(objections - 1, CONFIG.objectionToasts.length - 1)];
+});
+
+$('pay').addEventListener('click', () => {
+  if (paid) return;
+  paid = true;
+  receipt.querySelectorAll('.stamp').forEach((s) => s.remove());
+  stamp('Bezahlt · in Döner', 'green', '62%', '-10deg');
+  $('toast').textContent = CONFIG.payToast;
+  $('pay').disabled = true;
+  $('object').disabled = true;
+});
+
+run();
+</script>
+</body>
+</html>
